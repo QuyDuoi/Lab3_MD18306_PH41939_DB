@@ -7,8 +7,40 @@ const Users = require("../models/users");
 const Transporter = require("../config/common/mail");
 const JWT = require('jsonwebtoken');
 const SECRETKEY = "FPTPOLYTECHNIC";
+const Foods = require('../models/foods');
 
-router.post("/add_distributor", async (req, res) => {
+// API thêm food
+router.post('/themMon', async (req, res) => {
+    try {
+        const data = req.body;
+        const newFood = new Foods({
+            tenMon: data.tenMon,
+            loaiMon: data.loaiMon,
+            giaMon: data.giaMon,
+            trangThai: data.trangThai,
+            hinhAnh: data.hinhAnh,
+            moTa: data.moTa
+        });
+        const result = await newFood.save();
+        if(result) {
+            res.json({
+                "status": 200,
+                "messenger" : "Thêm món thành công",
+                "data" : result
+            })
+        } else {
+            res.json({
+                "status" : 400,
+                "messenger": "Thêm món thất bại",
+                'data' : []
+            })
+        }
+    } catch (error) {
+        console.log(error);
+    }
+});
+
+router.post("/add-distributor", async (req, res) => {
   try {
     const data = req.body;
     const newDistributors = new Distributors({
@@ -66,23 +98,20 @@ router.post("/add_fruit", async (req, res) => {
 
 router.get("/get-list-fruit", async (req, res) => {
   const authHeader = req.headers["authorization"];
-  //Authorization thêm từ khóa ` Bearer token`
-  //Nên xử lý cắt chuỗi
   const token = authHeader && authHeader.split(' ')[1];
-  //Nếu không có token sẽ trả về 401
   if (token == null) return res.sendStatus(401);
-  let payload;
-  JWT.verify(token, SECRETKEY, (err, _payload) => {
-    //Kiểm tra token,nếu token ko đúng,hoặc hết hạn
-    //Trả status code 403
-    //Trả status hết hạn 401 khi token hết hạn
-    if (err instanceof JWT.TokenExpiredError) return res.sendStatus(401);
-    if (err) return res.sendStatus(403);
-    //Nếu đúng sẽ log ra dữ liệu
-    payload = _payload;
-  });
-  console.log(payload);
+
   try {
+    const payload = await new Promise((resolve, reject) => {
+      JWT.verify(token, SECRETKEY, (err, _payload) => {
+        if (err instanceof JWT.TokenExpiredError) reject(401);
+        if (err) reject(403);
+        resolve(_payload);
+      });
+    });
+
+    console.log(payload);
+
     const data = await Fruits.find().populate("id_distributor");
     res.json({
       status: 200,
@@ -91,6 +120,11 @@ router.get("/get-list-fruit", async (req, res) => {
     });
   } catch (error) {
     console.log(error);
+    if (error === 401) {
+      return res.sendStatus(401);
+    } else {
+      return res.sendStatus(403);
+    }
   }
 });
 
@@ -188,6 +222,7 @@ router.put("/update-fruit-by-id/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const data = req.body;
+    console.log(data);
     const updatefruit = await Fruits.findById(id);
     let result = null;
     if (updatefruit) {
@@ -208,6 +243,7 @@ router.put("/update-fruit-by-id/:id", async (req, res) => {
         messenger: "Cập nhật thành công",
         data: result,
       });
+      console.log(result);
     } else {
       res.json({
         status: 200,
@@ -268,7 +304,7 @@ router.post(
         description: data.description,
         id_distributor: data.id_distributor,
       });
-      const result = await newfruit.save();
+      const result = (await newfruit.save()).populate("id_distributor");
       if (result) {
         res.json({
           status: 200,
@@ -378,5 +414,85 @@ router.post("/login", async (req, res) => {
     console.log(error);
   }
 });
+
+router.get('/get-list-distributor', async (req, res) => {
+  try {
+      const data = await Distributors.find().sort({ createdAt: -1 });
+      res.send(data);
+  } catch (error) {
+      console.log(error);
+      res.status(500).json({
+          status: 500,
+          messenger: "Lỗi, thất bại",
+          data: []
+      });
+  }
+})
+
+
+router.get('/search-distributor', async (req, res) => {
+  try {
+    const key = req.query.key;
+    const data = await Distributors.find({name: {"$regex":key, "$options":"i"}})
+    .sort({createdAt: -1});
+    if (data) {
+      res.send(data);
+    } else {
+      res.send(null);
+    }
+  } catch (error) {
+    console.log(error);
+    res.json({
+      "status": 500,
+      "messenger" : "Lỗi, thất bại",
+      "data" : []
+    })
+  }
+})
+
+router.delete('/delete-distributor-by-id/:id', async (req,res) => {
+  try {
+    const {id} = req.params;
+    const result = await Distributors.findByIdAndDelete(id);
+    if (result) {
+      res.json({
+        "status": 200,
+        "messenger" : "Xóa thành công",
+        "data" : result
+      })
+    } else {
+      res.json({
+        "status": 400,
+        "messenger" : "Xóa thất bại",
+        "data" : []
+      })
+    }
+  } catch (error) {
+    console.log(error);
+  }
+})
+
+router.put('/update-distributor-by-id/:id', async (req, res) => {
+  try {
+    const {id} = req.params;
+    const data = req.body;
+    const result = await Distributors.findByIdAndUpdate(id, {name: data.name})
+    if (result) {
+      res.json({
+        "status": 200,
+        "messenger" : "Cập nhật thành công",
+        "data" : result
+      })
+    } else {
+      res.json({
+        "status": 400,
+        "messenger" : "Cập nhật thất bại",
+        "data" : []
+      })
+    }
+  } catch (error) {
+    console.log(error);
+  }
+})
 
 module.exports = router;
